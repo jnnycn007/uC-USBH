@@ -45,14 +45,14 @@
 *********************************************************************************************************
 */
 
-#define  APP_USBH_ECM_TASK_STK_SIZE              512u
-#define  APP_USBH_ECM_TASK_PRIO                  10u
+#define  APP_USBH_ECM_TASK_STK_SIZE                      512u
+#define  APP_USBH_ECM_TASK_PRIO                           10u
 
-#define  APP_USBH_ECM_MAC_LEN                    6u
-#define  APP_USBH_ECM_MAC_ARP_OFFSET_1           6u
-#define  APP_USBH_ECM_MAC_ARP_OFFSET_2           22u
+#define  APP_USBH_ECM_MAC_LEN                              6u
+#define  APP_USBH_ECM_MAC_ARP_OFFSET_1                     6u
+#define  APP_USBH_ECM_MAC_ARP_OFFSET_2                    22u
 
-#define  APP_USBH_ECM_PCK_SIZE                   1514u
+#define  APP_USBH_ECM_PCK_SIZE                          1514u
 
 /*
 *********************************************************************************************************
@@ -312,8 +312,8 @@ static  void  App_USBH_ECM_DevConn (USBH_CDC_DEV  *p_cdc_dev)
 
                                                                 /* Convert UTF16 MAC address to binary.                 */
     for (int i = 0; i < sizeof(App_USBH_ECM_MACAddr); i++) {
-        App_USBH_ECM_MACAddr[i] =  Str_ParseNbr_Int32U((CPU_CHAR*) &App_USBH_ECM_Ptr->MAC_Addr[2 * i],     DEF_NULL, 16) << 4;
-        App_USBH_ECM_MACAddr[i] += Str_ParseNbr_Int32U((CPU_CHAR*) &App_USBH_ECM_Ptr->MAC_Addr[2 * i + 1], DEF_NULL, 16);
+        App_USBH_ECM_MACAddr[i] =  Str_ParseNbr_Int32U((CPU_CHAR *)&App_USBH_ECM_Ptr->MAC_Addr[2 * i],     DEF_NULL, 16) << 4;
+        App_USBH_ECM_MACAddr[i] += Str_ParseNbr_Int32U((CPU_CHAR *)&App_USBH_ECM_Ptr->MAC_Addr[2 * i + 1], DEF_NULL, 16);
     }
 
     USBH_CDC_ECM_EventRxNotifyReg(App_USBH_ECM_Ptr, App_USBH_ECM_EventNotify, DEF_NULL);
@@ -365,7 +365,8 @@ static  void  App_USBH_ECM_EventNotify   (void                   *p_arg,
     if (ecm_state.Event == USBH_CDC_ECM_EVENT_NETWORK_CONNECTION) {
         App_USBH_ECM_NetworkConnected = ecm_state.EventData.ConnectionStatus;
 
-        if (App_USBH_ECM_NetworkConnected && !App_USBH_ECM_StartedRxData) {
+        if ((App_USBH_ECM_NetworkConnected == DEF_TRUE ) &&
+            (App_USBH_ECM_StartedRxData    == DEF_FALSE)) {
             USBH_CDC_DataRxAsync(App_USBH_CDC_Ptr,
                                  App_USBH_ECM_RxBuf,
                                  sizeof(App_USBH_ECM_RxBuf),

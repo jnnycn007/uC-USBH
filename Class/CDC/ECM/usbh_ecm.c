@@ -307,32 +307,35 @@ USBH_ERR  USBH_CDC_ECM_Remove (USBH_CDC_ECM_DEV  *p_cdc_ecm_dev)
 *********************************************************************************************************
 *                                   USBH_CDC_ECM_EventRxNotifyReg()
 *
-* Description : Register callback function to be called when serial state is received from device.
+* Description : Register callback function to be called when notifications are received from device.
 *
 * Argument(s) : p_cdc_ecm_dev               Pointer to CDC ECM device.
 *
-*               p_serial_state_notify       Function to be called.
+*               p_ecm_event_notify          Function to be called.
 *
-* Return(s)   : None.
+* Return(s)   : USBH_ERR_NONE,              if registration was successful.
+*               USBH_ERR_INVALID_ARG,       if invalid argument passed to 'p_cdc_ecm_dev'.
+*
+*               See USBH_CDC_EventRxAsync for more return values.
 *
 * Note(s)     : None.
 *********************************************************************************************************
 */
 
-void  USBH_CDC_ECM_EventRxNotifyReg (USBH_CDC_ECM_DEV              *p_cdc_ecm_dev,
-                                     USBH_CDC_ECM_EVENT_NOTIFY      p_ecm_event_notify,
-                                     void                          *p_arg)
+USBH_ERR  USBH_CDC_ECM_EventRxNotifyReg (USBH_CDC_ECM_DEV              *p_cdc_ecm_dev,
+                                         USBH_CDC_ECM_EVENT_NOTIFY      p_ecm_event_notify,
+                                         void                          *p_arg)
 {
     if (p_cdc_ecm_dev == (USBH_CDC_ECM_DEV *)0) {
-        return;
+        return USBH_ERR_INVALID_ARG;
     }
 
     p_cdc_ecm_dev->EventNotifyPtr    = p_ecm_event_notify;
     p_cdc_ecm_dev->EventNotifyArgPtr = p_arg;
 
-    USBH_CDC_EventNotifyReg(        p_cdc_ecm_dev->CDC_DevPtr,
-                                    USBH_CDC_ECM_EventRxCmpl,
-                            (void *)p_cdc_ecm_dev);
+    return USBH_CDC_EventNotifyReg(        p_cdc_ecm_dev->CDC_DevPtr,
+                                           USBH_CDC_ECM_EventRxCmpl,
+                                   (void *)p_cdc_ecm_dev);
 }
 
 
@@ -447,6 +450,9 @@ static  void  USBH_CDC_ECM_EventRxCmpl (void        *p_context,
 
               case USBH_CDC_NOTIFICATION_CONN_SPEED_CHNG:     /* CDC 1.2 Section 6.3.3 Table 23.                        */
                   if (xfer_len < 16u) {
+#if (USBH_CFG_PRINT_LOG == DEF_ENABLED)
+                      USBH_PRINT_LOG("Notification connection speed change with incorrect length\r\n");
+#endif
                       return;
                   }
 

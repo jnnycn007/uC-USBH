@@ -90,10 +90,10 @@ typedef struct usbh_cdc_ecm_state {
 } USBH_CDC_ECM_STATE;
 
 typedef struct usbh_cdc_ecm_parameters {
-    CPU_INT32U  EthernetStatistics;              /* Bitmap of supported statistics.                                     */
-    CPU_INT16U  MaxSegmentSize;                   /* Maximum segment size, typically 1514.                              */
-    CPU_INT16U  NumberMCFilters;                  /* Number of multicast filters supported.                             */
-    CPU_INT08U  NumberPowerFilters;               /* Number of power filters supported.                                 */
+    CPU_INT32U  EthernetStatistics;                /* Bitmap of supported statistics.                                   */
+    CPU_INT16U  MaxSegmentSize;                    /* Maximum segment size, typically 1514.                             */
+    CPU_INT16U  NumberMCFilters;                   /* Number of multicast filters supported.                            */
+    CPU_INT08U  NumberPowerFilters;                /* Number of power filters supported.                                */
 } USBH_CDC_ECM_PARAMETERS;
 
 typedef  void  (*USBH_CDC_ECM_EVENT_NOTIFY)    (void                   *p_arg,
@@ -131,16 +131,16 @@ typedef  struct  usbh_cdc_ecm_dev {
 *********************************************************************************************************
 */
 
-USBH_ERR           USBH_CDC_ECM_GlobalInit      (void);
+USBH_ERR           USBH_CDC_ECM_GlobalInit        (void);
 
-void               USBH_CDC_ECM_EventRxNotifyReg(USBH_CDC_ECM_DEV              *p_cdc_ecm_dev,
-                                                 USBH_CDC_ECM_EVENT_NOTIFY      p_ecm_event_notify,
-                                                 void                          *p_arg);
+USBH_ERR           USBH_CDC_ECM_EventRxNotifyReg  (USBH_CDC_ECM_DEV              *p_cdc_ecm_dev,
+                                                   USBH_CDC_ECM_EVENT_NOTIFY      p_ecm_event_notify,
+                                                   void                          *p_arg);
 
-USBH_CDC_ECM_DEV  *USBH_CDC_ECM_Add             (USBH_CDC_DEV                  *p_cdc_dev,
-                                                 USBH_ERR                      *p_err);
+USBH_CDC_ECM_DEV  *USBH_CDC_ECM_Add               (USBH_CDC_DEV                  *p_cdc_dev,
+                                                   USBH_ERR                      *p_err);
 
-USBH_ERR           USBH_CDC_ECM_Remove          (USBH_CDC_ECM_DEV              *p_cdc_ecm_dev);
+USBH_ERR           USBH_CDC_ECM_Remove            (USBH_CDC_ECM_DEV              *p_cdc_ecm_dev);
 
 
 /*
