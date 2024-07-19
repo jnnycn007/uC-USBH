@@ -73,6 +73,7 @@
 
 #ifndef  APP_CFG_USBH_CDC_ACM_EN
 #define  APP_CFG_USBH_CDC_ACM_EN                DEF_DISABLED
+#endif
 
 #ifndef  APP_CFG_USBH_CDC_ECM_EN
 #define  APP_CFG_USBH_CDC_ECM_EN                DEF_DISABLED

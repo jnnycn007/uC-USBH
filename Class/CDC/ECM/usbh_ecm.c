@@ -101,13 +101,13 @@ static  USBH_CDC_ECM_DEV  USBH_CDC_ECM_DevArr[USBH_CDC_ECM_CFG_MAX_DEV];
 *********************************************************************************************************
 */
 
-static  USBH_ERR  USBH_CDC_ECM_DescParse          (USBH_CDC_ECM_DESC    *p_cdc_ecm_desc,
-                                                   USBH_IF              *p_if);
+static  USBH_ERR  USBH_CDC_ECM_DescParse  (USBH_CDC_ECM_DESC  *p_cdc_ecm_desc,
+                                           USBH_IF            *p_if);
 
-static  void      USBH_CDC_ECM_EventRxCmpl        (void                 *p_context,
-                                                   CPU_INT08U           *p_buf,
-                                                   CPU_INT32U            xfer_len,
-                                                   USBH_ERR              err);
+static  void      USBH_CDC_ECM_EventRxCmpl(void               *p_context,
+                                           CPU_INT08U         *p_buf,
+                                           CPU_INT32U          xfer_len,
+                                           USBH_ERR            err);
 
 
 /*
@@ -215,7 +215,7 @@ USBH_CDC_ECM_DEV  *USBH_CDC_ECM_Add (USBH_CDC_DEV  *p_cdc_dev,
        *p_err = USBH_ERR_INVALID_ARG;
         return ((USBH_CDC_ECM_DEV *)0);
     }
-                                                                                /* Allocate CDC ECM dev from mem pool.  */
+                                                                /* Allocate CDC ECM dev from mem pool.                  */
     p_cdc_ecm_dev = (USBH_CDC_ECM_DEV *)Mem_PoolBlkGet(&USBH_CDC_ECM_DevPool,
                                                         sizeof(USBH_CDC_ECM_DEV),
                                                        &err_lib);
@@ -227,31 +227,35 @@ USBH_CDC_ECM_DEV  *USBH_CDC_ECM_Add (USBH_CDC_DEV  *p_cdc_dev,
     p_cdc_ecm_dev->CDC_DevPtr = p_cdc_dev;
 
     p_cif = USBH_CDC_CommIF_Get(p_cdc_ecm_dev->CDC_DevPtr);
-   *p_err = USBH_CDC_ECM_DescParse(&ecm_desc, p_cif);                           /* Get ECM desc from IF.                */
+   *p_err = USBH_CDC_ECM_DescParse(&ecm_desc, p_cif);           /* Get ECM desc from IF.                                */
     if (*p_err != USBH_ERR_NONE) {
         goto end_free_return_empty;
     }
 
-                                                                                /* Get MAC address from string desc.    */
-    USBH_StrGet(p_cdc_dev->DevPtr,ecm_desc.iMACAddress, 0, p_cdc_ecm_dev->MAC_Addr,
-                sizeof(p_cdc_ecm_dev->MAC_Addr), p_err);
+                                                                /* Get MAC address from string desc.                    */
+    USBH_StrGet(              p_cdc_dev->DevPtr,
+                              ecm_desc.iMACAddress,
+                              0,
+                (CPU_INT08U*) p_cdc_ecm_dev->MAC_Addr,
+                              sizeof(p_cdc_ecm_dev->MAC_Addr),
+                              p_err);
     if (*p_err != USBH_ERR_NONE) {
         goto end_free_return_empty;
     }
 
-                                                                                /* Save parameters.                     */
+                                                                /* Save parameters.                                     */
     p_cdc_ecm_dev->Parameters.EthernetStatistics = ecm_desc.bmEthernetStatistics;
     p_cdc_ecm_dev->Parameters.MaxSegmentSize     = ecm_desc.wMaxSegmentSize;
     p_cdc_ecm_dev->Parameters.NumberMCFilters    = ecm_desc.wNumberMCFilters;
     p_cdc_ecm_dev->Parameters.NumberPowerFilters = ecm_desc.bNumberPowerFilters;
 
-                                                                                /* Select CDC ECM configuration.        */
+                                                                /* Select CDC ECM configuration.                        */
    *p_err = USBH_CfgSet(p_cdc_dev->DevPtr, p_cdc_dev->Cfg_Nbr);
     if (*p_err != USBH_ERR_NONE) {
         goto end_free_return_empty;
     }
 
-                                                                                /* See Note #1.                         */
+                                                                /* See Note #1.                                         */
     USBH_SET_IF(p_cdc_dev->DevPtr, p_cdc_dev->DIC_IF_Nbr, p_cdc_dev->DIC_IF_Ptr->AltIxSel, p_err);
     if (*p_err != USBH_ERR_NONE) {
         goto end_free_return_empty;
@@ -313,6 +317,8 @@ USBH_ERR  USBH_CDC_ECM_Remove (USBH_CDC_ECM_DEV  *p_cdc_ecm_dev)
 *
 *               p_ecm_event_notify          Function to be called.
 *
+*               p_arg                       Argument to be passed to the notify function.
+*
 * Return(s)   : USBH_ERR_NONE,              if registration was successful.
 *               USBH_ERR_INVALID_ARG,       if invalid argument passed to 'p_cdc_ecm_dev'.
 *
@@ -322,9 +328,9 @@ USBH_ERR  USBH_CDC_ECM_Remove (USBH_CDC_ECM_DEV  *p_cdc_ecm_dev)
 *********************************************************************************************************
 */
 
-USBH_ERR  USBH_CDC_ECM_EventRxNotifyReg (USBH_CDC_ECM_DEV              *p_cdc_ecm_dev,
-                                         USBH_CDC_ECM_EVENT_NOTIFY      p_ecm_event_notify,
-                                         void                          *p_arg)
+USBH_ERR  USBH_CDC_ECM_EventRxNotifyReg (USBH_CDC_ECM_DEV           *p_cdc_ecm_dev,
+                                         USBH_CDC_ECM_EVENT_NOTIFY   p_ecm_event_notify,
+                                         void                       *p_arg)
 {
     if (p_cdc_ecm_dev == (USBH_CDC_ECM_DEV *)0) {
         return USBH_ERR_INVALID_ARG;
@@ -376,7 +382,7 @@ static  USBH_ERR  USBH_CDC_ECM_DescParse (USBH_CDC_ECM_DESC  *p_cdc_ecm_desc,
 
     while (p_if_desc[1] != USBH_DESC_TYPE_EP) {
 
-                                                  /* ECM 1.2 Section 5.4 Table 3.                                       */
+                                                                /* ECM 1.2 Section 5.4 Table 3.                         */
         if (p_if_desc[2] == USBH_CDC_FNCTL_DESC_SUB_ENFD) {
             p_cdc_ecm_desc->bFunctionLength      = p_if_desc[0];
             p_cdc_ecm_desc->bDescriptorType      = p_if_desc[1];
@@ -399,7 +405,7 @@ static  USBH_ERR  USBH_CDC_ECM_DescParse (USBH_CDC_ECM_DESC  *p_cdc_ecm_desc,
 
 /*
 *********************************************************************************************************
-*                                     USBH_CDC_ECM_EventRxCmpl()
+*                                      USBH_CDC_ECM_EventRxCmpl()
 *
 * Description : Callback function invoked when status reception is completed.
 *
@@ -422,10 +428,10 @@ static  void  USBH_CDC_ECM_EventRxCmpl (void        *p_context,
                                         CPU_INT32U   xfer_len,
                                         USBH_ERR     err)
 {
-    USBH_CDC_ECM_DEV       *p_cdc_ecm_dev;
-    CPU_INT08U              req;
-    CPU_INT08U              value;
-    USBH_CDC_ECM_STATE      ecm_state;
+    USBH_CDC_ECM_DEV    *p_cdc_ecm_dev;
+    CPU_INT08U           req;
+    CPU_INT08U           value;
+    USBH_CDC_ECM_STATE   ecm_state;
 
 
     p_cdc_ecm_dev = (USBH_CDC_ECM_DEV *)p_context;
@@ -439,30 +445,30 @@ static  void  USBH_CDC_ECM_EventRxCmpl (void        *p_context,
         value = MEM_VAL_GET_INT16U(p_buf + 2);
 
         switch (req) {
-              case USBH_CDC_NOTIFICATION_NET_CONN:            /* CDC 1.2 Section 6.3.1.                                 */
-                  ecm_state.Event = USBH_CDC_ECM_EVENT_NETWORK_CONNECTION;
-                  ecm_state.EventData.ConnectionStatus = value;
-                  break;
+            case USBH_CDC_NOTIFICATION_NET_CONN:                /* CDC 1.2 Section 6.3.1.                               */
+                ecm_state.Event = USBH_CDC_ECM_EVENT_NETWORK_CONNECTION;
+                ecm_state.EventData.ConnectionStatus = value;
+                break;
 
-              case USBH_CDC_NOTIFICATION_RESP_AVAIL:          /* CDC 1.2 Section 6.3.2.                                 */
-                  ecm_state.Event = USBH_CDC_ECM_EVENT_RESPONSE_AVAILABLE;
-                  break;
+            case USBH_CDC_NOTIFICATION_RESP_AVAIL:              /* CDC 1.2 Section 6.3.2.                               */
+                ecm_state.Event = USBH_CDC_ECM_EVENT_RESPONSE_AVAILABLE;
+                break;
 
-              case USBH_CDC_NOTIFICATION_CONN_SPEED_CHNG:     /* CDC 1.2 Section 6.3.3 Table 23.                        */
-                  if (xfer_len < 16u) {
+            case USBH_CDC_NOTIFICATION_CONN_SPEED_CHNG:         /* CDC 1.2 Section 6.3.3 Table 23.                      */
+                if (xfer_len < 16u) {
 #if (USBH_CFG_PRINT_LOG == DEF_ENABLED)
-                      USBH_PRINT_LOG("Notification connection speed change with incorrect length\r\n");
+                    USBH_PRINT_LOG("Notification connection speed change with incorrect length\r\n");
 #endif
-                      return;
-                  }
+                    return;
+                }
 
-                  ecm_state.Event = USBH_CDC_ECM_EVENT_CONNECTION_SPEED_CHANGE;
-                  ecm_state.EventData.ConnectionSpeed.DownlinkSpeed = MEM_VAL_GET_INT32U(p_buf + 8);
-                  ecm_state.EventData.ConnectionSpeed.UplinkSpeed   = MEM_VAL_GET_INT32U(p_buf + 12);
-                  break;
+                ecm_state.Event = USBH_CDC_ECM_EVENT_CONNECTION_SPEED_CHANGE;
+                ecm_state.EventData.ConnectionSpeed.DownlinkSpeed = MEM_VAL_GET_INT32U(p_buf + 8);
+                ecm_state.EventData.ConnectionSpeed.UplinkSpeed   = MEM_VAL_GET_INT32U(p_buf + 12);
+                break;
 
             default:
-                 return;
+                return;
 
         }
 

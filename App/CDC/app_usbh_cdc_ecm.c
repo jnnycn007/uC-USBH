@@ -33,9 +33,8 @@
 *********************************************************************************************************
 */
 
-#include  <app_cfg.h>
+#include  <app_usbh.h>
 #include  <lib_str.h>
-#include  <os.h>
 #include  "app_usbh_cdc_ecm.h"
 
 
@@ -81,8 +80,7 @@
 *********************************************************************************************************
 */
 
-static  OS_TCB             App_USBH_ECM_TaskTCB;
-static  CPU_STK            App_USBH_ECM_TaskStk[APP_USBH_ECM_TASK_STK_SIZE];
+static  USBH_STK           App_USBH_ECM_TaskStk[APP_USBH_ECM_TASK_STK_SIZE];
 static  USBH_CDC_DEV      *App_USBH_CDC_Ptr;                          /* Pointer to connected CDC device.               */
 static  USBH_CDC_ECM_DEV  *App_USBH_ECM_Ptr;                          /* Pointer to connected CDC ECM device.           */
 static  CPU_BOOLEAN        App_USBH_ECM_NetworkConnected = DEF_FALSE; /* Flag to indicate network connection status.    */
@@ -108,26 +106,26 @@ static  CPU_INT08U App_ARP_announce[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xa
 *********************************************************************************************************
 */
 
-static  void  App_USBH_CDC_ClassNotify   (void                   *p_class_dev,
-                                          CPU_INT08U              state,
-                                          void                   *p_ctx);
+static  void  App_USBH_CDC_ClassNotify(void                *p_class_dev,
+                                       CPU_INT08U           state,
+                                       void                *p_ctx);
 
-static  void  App_USBH_ECM_DevConn       (USBH_CDC_DEV           *p_cdc_dev);
+static  void  App_USBH_ECM_DevConn    (USBH_CDC_DEV        *p_cdc_dev);
 
-static  void  App_USBH_ECM_DevDisconn    (USBH_CDC_DEV           *p_cdc_dev);
+static  void  App_USBH_ECM_DevDisconn (USBH_CDC_DEV        *p_cdc_dev);
 
-static  void  App_USBH_ECM_EventNotify   (void                   *p_arg,
-                                          USBH_CDC_ECM_STATE      ecm_state);
+static  void  App_USBH_ECM_EventNotify(void                *p_arg,
+                                       USBH_CDC_ECM_STATE   ecm_state);
 
-static  void  App_USBH_ECM_DataRxCmpl    (void                   *p_data,
-                                          CPU_INT08U             *p_buf,
-                                          CPU_INT32U              xfer_len,
-                                          USBH_ERR                err);
+static  void  App_USBH_ECM_DataRxCmpl (void                *p_data,
+                                       CPU_INT08U          *p_buf,
+                                       CPU_INT32U           xfer_len,
+                                       USBH_ERR             err);
 
-static  void  App_USBH_ECM_Task          (void                   *p_arg);
+static  void  App_USBH_ECM_Task       (void                *p_arg);
 
-static  void  App_USBH_ECM_ARPSetMAC     (CPU_INT08U             *p_buf,
-                                          CPU_INT08U             *p_mac);
+static  void  App_USBH_ECM_ARPSetMAC  (CPU_INT08U          *p_buf,
+                                       CPU_INT08U          *p_mac);
 
 
 /*
@@ -170,8 +168,8 @@ static  void  App_USBH_ECM_ARPSetMAC     (CPU_INT08U             *p_buf,
 
 USBH_ERR  App_USBH_CDC_ECM_Init (void)
 {
-    USBH_ERR  err;
-    OS_ERR    os_err;
+    USBH_HTASK htask;
+    USBH_ERR   err;
 
     err = USBH_CDC_ECM_GlobalInit();
     if (err != USBH_ERR_NONE) {
@@ -188,19 +186,13 @@ USBH_ERR  App_USBH_CDC_ECM_Init (void)
 
 
                                                                 /* ----------- TASK FOR SENDING ARP MSG --------------- */
-    OSTaskCreate(            &App_USBH_ECM_TaskTCB,
-                 (CPU_CHAR*)  "Example USBH ECM Task",
-                              App_USBH_ECM_Task,
-                              DEF_NULL,
-                              APP_USBH_ECM_TASK_PRIO,
-                              App_USBH_ECM_TaskStk,
-                              0,
-                              APP_USBH_ECM_TASK_STK_SIZE,
-                              0,
-                              0,
-                              0,
-                              (OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
-                             &os_err);
+    err = USBH_OS_TaskCreate(              "Example USBH ECM Task",
+                                            APP_USBH_ECM_TASK_PRIO,
+                                            App_USBH_ECM_Task,
+                             (void       *) 0,
+                             (CPU_INT32U *)&App_USBH_ECM_TaskStk[0],
+                                            APP_USBH_ECM_TASK_STK_SIZE,
+                                           &htask);
 
 
     return (err);
@@ -217,7 +209,7 @@ USBH_ERR  App_USBH_CDC_ECM_Init (void)
 
 /*
 *********************************************************************************************************
-*                                     App_USBH_CDC_ClassNotify()
+*                                      App_USBH_CDC_ClassNotify()
 *
 * Description : Handle device state change notification for CDC devices.
 *
@@ -264,11 +256,11 @@ static  void  App_USBH_CDC_ClassNotify (void        *p_class_dev,
 
 /*
 *********************************************************************************************************
-*                                     App_USBH_ECM_DevConn()
+*                                      App_USBH_ECM_DevConn()
 *
 * Description : This function is called when CDC device is connected.
 *
-* Argument(s) : pcdc_dev          Pointer to CDC device.
+* Argument(s) : p_cdc_dev     Pointer to CDC device.
 *
 * Return(s)   : None.
 *
@@ -280,6 +272,7 @@ static  void  App_USBH_ECM_DevConn (USBH_CDC_DEV  *p_cdc_dev)
 {
     USBH_ERR    err;
     CPU_INT08U  sub_class;
+    CPU_INT08U  i;
 
 
     App_USBH_CDC_Ptr = p_cdc_dev;
@@ -311,7 +304,7 @@ static  void  App_USBH_ECM_DevConn (USBH_CDC_DEV  *p_cdc_dev)
     }
 
                                                                 /* Convert UTF16 MAC address to binary.                 */
-    for (int i = 0; i < sizeof(App_USBH_ECM_MACAddr); i++) {
+    for (i = 0; i < sizeof(App_USBH_ECM_MACAddr); i++) {
         App_USBH_ECM_MACAddr[i] =  Str_ParseNbr_Int32U((CPU_CHAR *)&App_USBH_ECM_Ptr->MAC_Addr[2 * i],     DEF_NULL, 16) << 4;
         App_USBH_ECM_MACAddr[i] += Str_ParseNbr_Int32U((CPU_CHAR *)&App_USBH_ECM_Ptr->MAC_Addr[2 * i + 1], DEF_NULL, 16);
     }
@@ -322,11 +315,11 @@ static  void  App_USBH_ECM_DevConn (USBH_CDC_DEV  *p_cdc_dev)
 
 /*
 *********************************************************************************************************
-*                                    App_USBH_ECM_DevDisconn()
+*                                      App_USBH_ECM_DevDisconn()
 *
 * Description : This function is called when CDC device is disconnected.
 *
-* Argument(s) : pcdc_dev          Pointer to CDC device.
+* Argument(s) : p_cdc_dev     Pointer to CDC device.
 *
 * Return(s)   : None.
 *
@@ -343,13 +336,13 @@ static  void  App_USBH_ECM_DevDisconn (USBH_CDC_DEV  *p_cdc_dev)
 
 /*
 *********************************************************************************************************
-*                                    App_USBH_ECM_EventNotify()
+*                                      App_USBH_ECM_EventNotify()
 *
 * Description : This function is called when CDC ECM event occurs.
 *
-* Argument(s) : p_args          Pointer to arguments passed to USBH_CDC_ECM_EventRxNotifyReg
+* Argument(s) : p_args        Pointer to arguments passed to USBH_CDC_ECM_EventRxNotifyReg
 *
-*               ecm_state       State of the CDC ECM device.
+*               ecm_state     State of the CDC ECM device.
 *
 * Return(s)   : None.
 *
@@ -357,8 +350,8 @@ static  void  App_USBH_ECM_DevDisconn (USBH_CDC_DEV  *p_cdc_dev)
 *********************************************************************************************************
 */
 
-static  void  App_USBH_ECM_EventNotify   (void                   *p_arg,
-                                          USBH_CDC_ECM_STATE      ecm_state)
+static  void  App_USBH_ECM_EventNotify(void                *p_arg,
+                                       USBH_CDC_ECM_STATE   ecm_state)
 {
     (void)p_arg;
 
@@ -380,17 +373,17 @@ static  void  App_USBH_ECM_EventNotify   (void                   *p_arg,
 
 /*
 *********************************************************************************************************
-*                                    App_USBH_ECM_DataRxCmpl()
+*                                      App_USBH_ECM_DataRxCmpl()
 *
 * Description : This function is called when CDC ECM event occurs.
 *
-* Argument(s) : p_data          Context data.
+* Argument(s) : p_data       Context data.
 *
-*               p_buf           Pointer to the buffer containing the received data.
+*               p_buf        Pointer to the buffer containing the received data.
 *
-*               xfer_len        Length of the received data.
+*               xfer_len     Length of the received data.
 *
-*               err             Error code.
+*               err          Error code.
 *
 * Return(s)   : None.
 *
@@ -398,10 +391,10 @@ static  void  App_USBH_ECM_EventNotify   (void                   *p_arg,
 *********************************************************************************************************
 */
 
-static  void  App_USBH_ECM_DataRxCmpl    (void                   *p_data,
-                                          CPU_INT08U             *p_buf,
-                                          CPU_INT32U              xfer_len,
-                                          USBH_ERR                err)
+static  void  App_USBH_ECM_DataRxCmpl (void        *p_data,
+                                       CPU_INT08U  *p_buf,
+                                       CPU_INT32U   xfer_len,
+                                       USBH_ERR     err)
 {
     (void)p_data;
     (void)p_buf;
@@ -419,11 +412,11 @@ static  void  App_USBH_ECM_DataRxCmpl    (void                   *p_data,
 
 /*
 *********************************************************************************************************
-*                                    App_USBH_ECM_Task()
+*                                         App_USBH_ECM_Task()
 *
 * Description : Task to send ECM data.
 *
-* Argument(s) : p_args          Task arguments, not used
+* Argument(s) : p_args     Task arguments, not used
 *
 * Return(s)   : None.
 *
@@ -431,7 +424,7 @@ static  void  App_USBH_ECM_DataRxCmpl    (void                   *p_data,
 *********************************************************************************************************
 */
 
-static  void  App_USBH_ECM_Task   (void *p_arg)
+static  void  App_USBH_ECM_Task (void  *p_arg)
 {
     USBH_ERR err;
 
@@ -444,7 +437,7 @@ static  void  App_USBH_ECM_Task   (void *p_arg)
             App_USBH_ECM_ARPSetMAC(App_USBH_ECM_TxBuf, App_USBH_ECM_MACAddr);
             USBH_CDC_DataTx(App_USBH_CDC_Ptr, App_USBH_ECM_TxBuf, sizeof(App_ARP_ReqWhoHas), &err);
 
-            OSTimeDlyHMSM(0, 0, 1, 0, OS_OPT_TIME_HMSM_STRICT, DEF_NULL);
+            USBH_OS_DlyMS(999u);
 
                                                                 /* Send ARP announce.                                   */
             Mem_Copy(App_USBH_ECM_TxBuf, App_ARP_announce, sizeof(App_ARP_announce));
@@ -452,20 +445,20 @@ static  void  App_USBH_ECM_Task   (void *p_arg)
             USBH_CDC_DataTx(App_USBH_CDC_Ptr, App_USBH_ECM_TxBuf, sizeof(App_ARP_announce), &err);
         }
 
-        OSTimeDlyHMSM(0, 0, 1, 0, OS_OPT_TIME_HMSM_STRICT, DEF_NULL);
+        USBH_OS_DlyMS(999u);
     }
 }
 
 
 /*
 *********************************************************************************************************
-*                                    App_USBH_ECM_ARPSetMAC()
+*                                       App_USBH_ECM_ARPSetMAC()
 *
 * Description : Set the MAC address in the ARP packet.
 *
-* Argument(s) : p_buf           ARP packet to update with the MAC address
+* Argument(s) : p_buf     ARP packet to update with the MAC address
 *
-*               p_mac           MAC address to write to the packet
+*               p_mac     MAC address to write to the packet
 *
 * Return(s)   : None.
 *
@@ -473,8 +466,8 @@ static  void  App_USBH_ECM_Task   (void *p_arg)
 *********************************************************************************************************
 */
 
-static  void  App_USBH_ECM_ARPSetMAC     (CPU_INT08U             *p_buf,
-                                          CPU_INT08U             *p_mac)
+static  void  App_USBH_ECM_ARPSetMAC (CPU_INT08U  *p_buf,
+                                      CPU_INT08U  *p_mac)
 {
     Mem_Copy(&p_buf[APP_USBH_ECM_MAC_ARP_OFFSET_1], p_mac, APP_USBH_ECM_MAC_LEN);
     Mem_Copy(&p_buf[APP_USBH_ECM_MAC_ARP_OFFSET_2], p_mac, APP_USBH_ECM_MAC_LEN);
