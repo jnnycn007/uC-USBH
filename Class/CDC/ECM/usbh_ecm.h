@@ -130,16 +130,22 @@ typedef  struct  usbh_cdc_ecm_dev {
 *********************************************************************************************************
 */
 
-USBH_ERR           USBH_CDC_ECM_GlobalInit      (void);
+USBH_ERR           USBH_CDC_ECM_GlobalInit  (void);
 
-USBH_ERR           USBH_CDC_ECM_EventRxNotifyReg(USBH_CDC_ECM_DEV           *p_cdc_ecm_dev,
-                                                 USBH_CDC_ECM_EVENT_NOTIFY   p_ecm_event_notify,
-                                                 void                       *p_arg);
+USBH_ERR           USBH_CDC_ECM_EventRxAsync(USBH_CDC_ECM_DEV           *p_cdc_ecm_dev,
+                                             USBH_CDC_ECM_EVENT_NOTIFY   p_ecm_event_notify,
+                                             void                       *p_arg);
 
-USBH_CDC_ECM_DEV  *USBH_CDC_ECM_Add             (USBH_CDC_DEV               *p_cdc_dev,
-                                                 USBH_ERR                   *p_err);
+CPU_INT32U         USBH_CDC_ECM_DataTx      (USBH_CDC_ECM_DEV           *p_cdc_ecm_dev,
+                                             CPU_INT08U                 *p_buf,
+                                             CPU_INT32U                  buf_len,
+                                             CPU_INT32U                  timeout_ms,
+                                             USBH_ERR                   *p_err);
 
-USBH_ERR           USBH_CDC_ECM_Remove          (USBH_CDC_ECM_DEV           *p_cdc_ecm_dev);
+USBH_CDC_ECM_DEV  *USBH_CDC_ECM_Add         (USBH_CDC_DEV               *p_cdc_dev,
+                                             USBH_ERR                   *p_err);
+
+USBH_ERR           USBH_CDC_ECM_Remove      (USBH_CDC_ECM_DEV           *p_cdc_ecm_dev);
 
 
 /*

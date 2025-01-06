@@ -101,13 +101,15 @@ static  USBH_CDC_ECM_DEV  USBH_CDC_ECM_DevArr[USBH_CDC_ECM_CFG_MAX_DEV];
 *********************************************************************************************************
 */
 
-static  USBH_ERR  USBH_CDC_ECM_DescParse  (USBH_CDC_ECM_DESC  *p_cdc_ecm_desc,
-                                           USBH_IF            *p_if);
+static  USBH_ERR  USBH_CDC_ECM_DescParse   (USBH_CDC_ECM_DESC  *p_cdc_ecm_desc,
+                                            USBH_IF            *p_if);
 
-static  void      USBH_CDC_ECM_EventRxCmpl(void               *p_context,
-                                           CPU_INT08U         *p_buf,
-                                           CPU_INT32U          xfer_len,
-                                           USBH_ERR            err);
+static  void      USBH_CDC_ECM_EventRxCmpl (USBH_EP            *p_ep,
+                                            void               *p_buf,
+                                            CPU_INT32U          buf_len,
+                                            CPU_INT32U          xfer_len,
+                                            void               *p_arg,
+                                            USBH_ERR            err);
 
 
 /*
@@ -309,7 +311,7 @@ USBH_ERR  USBH_CDC_ECM_Remove (USBH_CDC_ECM_DEV  *p_cdc_ecm_dev)
 
 /*
 *********************************************************************************************************
-*                                   USBH_CDC_ECM_EventRxNotifyReg()
+*                                     USBH_CDC_ECM_EventRxAsync()
 *
 * Description : Register callback function to be called when notifications are received from device.
 *
@@ -328,20 +330,106 @@ USBH_ERR  USBH_CDC_ECM_Remove (USBH_CDC_ECM_DEV  *p_cdc_ecm_dev)
 *********************************************************************************************************
 */
 
-USBH_ERR  USBH_CDC_ECM_EventRxNotifyReg (USBH_CDC_ECM_DEV           *p_cdc_ecm_dev,
-                                         USBH_CDC_ECM_EVENT_NOTIFY   p_ecm_event_notify,
-                                         void                       *p_arg)
+USBH_ERR  USBH_CDC_ECM_EventRxAsync (USBH_CDC_ECM_DEV           *p_cdc_ecm_dev,
+                                     USBH_CDC_ECM_EVENT_NOTIFY   p_ecm_event_notify,
+                                     void                       *p_arg)
 {
-    if (p_cdc_ecm_dev == (USBH_CDC_ECM_DEV *)0) {
+    USBH_ERR       err;
+    USBH_CDC_DEV  *p_cdc_dev;
+
+
+    if ((p_cdc_ecm_dev      == (USBH_CDC_ECM_DEV        *)0)  ||
+        (p_ecm_event_notify == (USBH_CDC_ECM_EVENT_NOTIFY)0))
         return USBH_ERR_INVALID_ARG;
     }
+
+    p_cdc_dev = p_cdc_ecm_dev->CDC_DevPtr;
 
     p_cdc_ecm_dev->EventNotifyPtr    = p_ecm_event_notify;
     p_cdc_ecm_dev->EventNotifyArgPtr = p_arg;
 
-    return USBH_CDC_EventNotifyReg(        p_cdc_ecm_dev->CDC_DevPtr,
-                                           USBH_CDC_ECM_EventRxCmpl,
-                                   (void *)p_cdc_ecm_dev);
+    err = USBH_IntrRxAsync(       &p_cdc_dev->CIC_IntrIn,
+                           (void *)p_cdc_dev->EventNotifyBuf,
+                                   USBH_CDC_LEN_EVENT_BUF,
+                                   USBH_CDC_ECM_EventRxCmpl,
+                           (void *)p_cdc_ecm_dev);
+    if (err != USBH_ERR_NONE) {
+        (void)USBH_EP_Reset(p_cdc_dev->DevPtr,
+                           &p_cdc_dev->CIC_IntrIn);
+
+        if (err == USBH_ERR_EP_STALL) {
+            (void)USBH_EP_StallClr(&p_cdc_dev->CIC_IntrIn);
+        }
+    }
+
+    return (err);
+}
+
+
+/*
+*********************************************************************************************************
+*                                        USBH_CDC_ECM_DataTx()
+*
+* Description : Send ECM data to device.
+*
+* Argument(s) : p_cdc_ecm_dev     Pointer to CDC ECM device.
+*
+*               p_buf             Pointer to buffer of data that will be sent.
+*
+*               buf_len           Buffer length in octets.
+*
+*               timeout_ms        Timeout, in milliseconds.
+*
+*               p_err             Variable that will receive the return error code from this function.
+*
+*                                                                         ----- RETURNED BY USBH_BulkTx() : -----
+*                                 USBH_ERR_NONE                           Bulk transfer successfully transmitted.
+*                                 USBH_ERR_INVALID_ARG                    Invalid argument passed to 'p_ep'.
+*                                 USBH_ERR_EP_INVALID_TYPE                Endpoint type is not Bulk or direction is not OUT.
+*                                 USBH_ERR_EP_INVALID_STATE               Endpoint is not opened.
+*                                 USBH_ERR_NONE,                          URB is successfully submitted to host controller.
+*                                 Host controller drivers error code,     Otherwise.
+*
+* Return(s)   : Number of octets transferred.
+*
+* Note(s)     : None.
+*********************************************************************************************************
+*/
+
+CPU_INT32U  USBH_CDC_ECM_DataTx (USBH_CDC_ECM_DEV  *p_cdc_ecm_dev,
+                                 CPU_INT08U        *p_buf,
+                                 CPU_INT32U         buf_len,
+                                 CPU_INT32U         timeout_ms,
+                                 USBH_ERR          *p_err)
+{
+    CPU_INT32U     xfer_len;
+    USBH_CDC_DEV  *p_cdc_dev;
+
+
+    if (p_cdc_ecm_dev == (USBH_CDC_ECM_DEV *)0) {
+       *p_err = USBH_ERR_INVALID_ARG;
+        return (0u);
+    }
+
+    p_cdc_dev = p_cdc_ecm_dev->CDC_DevPtr;
+
+    xfer_len = USBH_BulkTx(       &p_cdc_dev->DIC_BulkOut,
+                           (void *)p_buf,
+                                   buf_len,
+                                   timeout_ms,
+                                   p_err);
+    if (*p_err != USBH_ERR_NONE) {
+        (void)USBH_EP_Reset(p_cdc_dev->DevPtr,
+                           &p_cdc_dev->DIC_BulkOut);
+
+        if (*p_err == USBH_ERR_EP_STALL) {
+            USBH_EP_StallClr(&p_cdc_dev->DIC_BulkOut);
+        }
+
+        return (0u);
+    }
+
+    return (xfer_len);
 }
 
 
@@ -409,11 +497,15 @@ static  USBH_ERR  USBH_CDC_ECM_DescParse (USBH_CDC_ECM_DESC  *p_cdc_ecm_desc,
 *
 * Description : Callback function invoked when status reception is completed.
 *
-* Argument(s) : p_context       Pointer to CDC ECM device.
+* Argument(s) : p_ep            Pointer to endpoint.
 *
-*               p_buf           Pointer to buffer that contains status received.
+*               p_buf           Pointer to buffer with received data.
 *
-*               buf_len         Number of octets received.
+*               buf_len         Receive buffer length.
+*
+*               xfer_len        Number of octets received.
+*
+*               p_arg           Pointer to CDC ECM device.
 *
 *               err             Receive status.
 *
@@ -423,9 +515,11 @@ static  USBH_ERR  USBH_CDC_ECM_DescParse (USBH_CDC_ECM_DESC  *p_cdc_ecm_desc,
 *********************************************************************************************************
 */
 
-static  void  USBH_CDC_ECM_EventRxCmpl (void        *p_context,
-                                        CPU_INT08U  *p_buf,
+static  void  USBH_CDC_ECM_EventRxCmpl (USBH_EP     *p_ep,
+                                        void        *p_buf,
+                                        CPU_INT32U   buf_len,
                                         CPU_INT32U   xfer_len,
+                                        void        *p_arg,
                                         USBH_ERR     err)
 {
     USBH_CDC_ECM_DEV    *p_cdc_ecm_dev;
@@ -434,15 +528,15 @@ static  void  USBH_CDC_ECM_EventRxCmpl (void        *p_context,
     USBH_CDC_ECM_STATE   ecm_state;
 
 
-    p_cdc_ecm_dev = (USBH_CDC_ECM_DEV *)p_context;
+    p_cdc_ecm_dev = (USBH_CDC_ECM_DEV *)p_arg;
 
     if (err == USBH_ERR_NONE) {
         if (xfer_len < 2u) {
             return;
         }
 
-        req   = MEM_VAL_GET_INT08U(p_buf + 1);
-        value = MEM_VAL_GET_INT16U(p_buf + 2);
+        req   = MEM_VAL_GET_INT08U((CPU_INT08U *)p_buf + 1);
+        value = MEM_VAL_GET_INT16U((CPU_INT08U *)p_buf + 2);
 
         switch (req) {
             case USBH_CDC_NOTIFICATION_NET_CONN:                /* CDC 1.2 Section 6.3.1.                               */
@@ -463,8 +557,8 @@ static  void  USBH_CDC_ECM_EventRxCmpl (void        *p_context,
                 }
 
                 ecm_state.Event = USBH_CDC_ECM_EVENT_CONNECTION_SPEED_CHANGE;
-                ecm_state.EventData.ConnectionSpeed.DownlinkSpeed = MEM_VAL_GET_INT32U(p_buf + 8);
-                ecm_state.EventData.ConnectionSpeed.UplinkSpeed   = MEM_VAL_GET_INT32U(p_buf + 12);
+                ecm_state.EventData.ConnectionSpeed.DownlinkSpeed = MEM_VAL_GET_INT32U((CPU_INT08U *)p_buf + 8);
+                ecm_state.EventData.ConnectionSpeed.UplinkSpeed   = MEM_VAL_GET_INT32U((CPU_INT08U *)p_buf + 12);
                 break;
 
             default:
