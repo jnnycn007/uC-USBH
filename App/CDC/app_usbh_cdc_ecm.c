@@ -309,7 +309,7 @@ static  void  App_USBH_ECM_DevConn (USBH_CDC_DEV  *p_cdc_dev)
         App_USBH_ECM_MACAddr[i] += Str_ParseNbr_Int32U((CPU_CHAR *)&App_USBH_ECM_Ptr->MAC_Addr[2 * i + 1], DEF_NULL, 16);
     }
 
-    USBH_CDC_ECM_EventRxNotifyReg(App_USBH_ECM_Ptr, App_USBH_ECM_EventNotify, DEF_NULL);
+    USBH_CDC_ECM_EventRxAsync(App_USBH_ECM_Ptr, App_USBH_ECM_EventNotify, DEF_NULL);
 }
 
 
@@ -340,7 +340,7 @@ static  void  App_USBH_ECM_DevDisconn (USBH_CDC_DEV  *p_cdc_dev)
 *
 * Description : This function is called when CDC ECM event occurs.
 *
-* Argument(s) : p_args        Pointer to arguments passed to USBH_CDC_ECM_EventRxNotifyReg
+* Argument(s) : p_args        Pointer to arguments passed to USBH_CDC_ECM_EventRxAsync
 *
 *               ecm_state     State of the CDC ECM device.
 *
@@ -369,7 +369,10 @@ static  void  App_USBH_ECM_EventNotify(void                *p_arg,
             App_USBH_ECM_StartedRxData = DEF_TRUE;
         }
     }
+
+    USBH_CDC_ECM_EventRxAsync(App_USBH_ECM_Ptr, App_USBH_ECM_EventNotify, DEF_NULL);
 }
+
 
 /*
 *********************************************************************************************************
